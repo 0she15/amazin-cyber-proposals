@@ -10,6 +10,7 @@ const LICENSES = [
   "Microsoft 365 Business Basic",
   "Microsoft 365 Business Standard",
   "Microsoft 365 Business Premium",
+  "Microsoft 365 Apps for Business",
   "Mixed / Not sure",
 ]
 const URGENCY = ["Standard", "Client has upcoming audit", "Recent security incident", "Time-sensitive"]
