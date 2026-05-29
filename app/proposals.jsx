@@ -42,6 +42,32 @@ export default function Proposals() {
   const [selectedHistoryId, setSelectedHistoryId] = useState(null)
   const resultRef = useRef(null)
 
+  // Pre-fill from URL params (called from checklist Generate Remediation Proposal button)
+  useEffect(() => {
+    if (typeof window === "undefined") return
+    const p = new URLSearchParams(window.location.search)
+    if (!p.get("company")) return
+    const prefilled = {
+      clientName: p.get("clientName") || "",
+      company: p.get("company") || "",
+      package: p.get("package") || PACKAGES[1],
+      licenseType: p.get("licenseType") || "",
+      userCount: p.get("userCount") || "",
+      concerns: p.get("concerns") || "",
+      callNotes: p.get("callNotes") || "",
+      urgency: p.get("urgency") || URGENCY[0],
+      riskLevel: p.get("riskLevel") || "Medium",
+    }
+    setForm(prefilled)
+    // Auto-generate if flag is set
+    if (p.get("autoGenerate") === "true") {
+      // Small delay to allow state to settle
+      setTimeout(() => document.getElementById("generate-btn")?.click(), 400)
+    }
+    // Clean URL
+    window.history.replaceState({}, "", window.location.pathname)
+  }, [])
+
   const set = (k, v) => setForm(f => ({ ...f, [k]: v }))
 
   const saveToHistory = (proposal, formData) => {
@@ -212,7 +238,7 @@ export default function Proposals() {
                   </div>
                 </div>
 
-                <button onClick={generate} disabled={status === "loading"}
+                <button id="generate-btn" onClick={generate} disabled={status === "loading"}
                   className={`w-full text-[14px] font-mono py-3 rounded-xl transition-all ${
                     status === "loading"
                       ? "bg-[#1e3a5f] text-[#3d5a7a] cursor-not-allowed"
