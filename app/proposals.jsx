@@ -14,6 +14,7 @@ const LICENSES = [
   "Mixed / Not sure",
 ]
 const URGENCY = ["Standard", "Client has upcoming audit", "Recent security incident", "Time-sensitive"]
+const RISK_LEVELS = ["Low", "Medium", "High"]
 
 const STORAGE_KEY = "amazin_proposals"
 
@@ -25,7 +26,7 @@ function formatDate(iso) {
 
 const EMPTY_FORM = {
   clientName: "", company: "", package: PACKAGES[1],
-  userCount: "", licenseType: "", concerns: "", callNotes: "", urgency: URGENCY[0],
+  userCount: "", licenseType: "", concerns: "", callNotes: "", urgency: URGENCY[0], riskLevel: "Medium",
 }
 
 export default function Proposals() {
@@ -182,12 +183,33 @@ export default function Proposals() {
                     className="w-full bg-[#0d1520] border border-[#1a2d45] rounded-lg px-3 py-2 text-[13px] text-[#e8f0fe] placeholder-[#3d5a7a] focus:outline-none focus:border-[#3b82f6] transition-colors resize-none" />
                 </div>
 
-                <div>
-                  <label className="block text-[11px] font-mono text-[#7a9abf] mb-1 uppercase tracking-wider">Urgency / Context</label>
-                  <select value={form.urgency} onChange={e => set("urgency", e.target.value)}
-                    className="w-full bg-[#0d1520] border border-[#1a2d45] rounded-lg px-3 py-2 text-[13px] text-[#e8f0fe] focus:outline-none focus:border-[#3b82f6] transition-colors">
-                    {URGENCY.map(u => <option key={u} value={u}>{u}</option>)}
-                  </select>
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-[11px] font-mono text-[#7a9abf] mb-1 uppercase tracking-wider">Estimated Risk Level</label>
+                    <div className="flex gap-2">
+                      {RISK_LEVELS.map(r => {
+                        const active = form.riskLevel === r
+                        const colors = {
+                          Low:    active ? "bg-green-500/20 border-green-500/50 text-green-400"  : "border-[#1a2d45] text-[#3d5a7a] hover:border-green-500/30 hover:text-green-400",
+                          Medium: active ? "bg-amber-500/20 border-amber-500/50 text-amber-400"  : "border-[#1a2d45] text-[#3d5a7a] hover:border-amber-500/30 hover:text-amber-400",
+                          High:   active ? "bg-red-500/20 border-red-500/50 text-red-400"        : "border-[#1a2d45] text-[#3d5a7a] hover:border-red-500/30 hover:text-red-400",
+                        }
+                        return (
+                          <button key={r} type="button" onClick={() => set("riskLevel", r)}
+                            className={`flex-1 text-[12px] font-mono py-2 rounded-lg border transition-all ${colors[r]}`}>
+                            {r}
+                          </button>
+                        )
+                      })}
+                    </div>
+                  </div>
+                  <div>
+                    <label className="block text-[11px] font-mono text-[#7a9abf] mb-1 uppercase tracking-wider">Urgency / Context</label>
+                    <select value={form.urgency} onChange={e => set("urgency", e.target.value)}
+                      className="w-full bg-[#0d1520] border border-[#1a2d45] rounded-lg px-3 py-2 text-[13px] text-[#e8f0fe] focus:outline-none focus:border-[#3b82f6] transition-colors">
+                      {URGENCY.map(u => <option key={u} value={u}>{u}</option>)}
+                    </select>
+                  </div>
                 </div>
 
                 <button onClick={generate} disabled={status === "loading"}

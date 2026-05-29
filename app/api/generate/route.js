@@ -3,7 +3,7 @@ import Anthropic from "@anthropic-ai/sdk"
 export async function POST(req) {
   try {
     const body = await req.json()
-    const { clientName, company, package: pkg, userCount, licenseType, concerns, callNotes, urgency } = body
+    const { clientName, company, package: pkg, userCount, licenseType, concerns, callNotes, urgency, riskLevel } = body
 
     const PACKAGE_DETAILS = {
       "Starter Snapshot — $250": {
@@ -53,6 +53,8 @@ TONE: Professional but human. Plain English. No jargon. No buzzwords. No scare t
 LENGTH: 1.5 to 2 pages when printed. Concise. Every sentence earns its place.
 VOICE: First-person singular (I, not we). Oshé is a solo operator — be honest about that. It's a strength.
 
+MOST IMPORTANT RULE: This proposal must focus on problems solved and outcomes delivered — not on tasks performed. Never write "I will check X." Write "You'll know whether X is putting your business at risk." The client doesn't care what you do. They care what they get and what risk goes away.
+
 FORMAT: Return the proposal as clean plain text with these exact section headers on their own lines:
 WHO THIS IS FOR
 WHAT'S INCLUDED
@@ -73,6 +75,14 @@ LICENSE TYPE: ${licenseType || "Not specified"}
 MAIN CONCERNS: ${concerns || "General security posture review"}
 CALL NOTES: ${callNotes || "Standard discovery call — client wants to understand their current security posture"}
 URGENCY: ${urgency || "Standard"}
+ESTIMATED RISK LEVEL: ${riskLevel || "Medium"}
+
+RISK LEVEL GUIDANCE:
+- Low: Tone is reassuring. Frame this as proactive and smart — getting ahead of problems before they happen.
+- Medium: Tone is direct. There are real gaps that need attention. The cost of inaction is real but not catastrophic yet.
+- High: Tone is urgent but calm. Something is already wrong or the exposure is serious. Oshé has seen this before and knows how to fix it. Do not panic — but do not wait.
+
+Adjust the language throughout the entire proposal based on the risk level above. The WHO THIS IS FOR section especially should reflect this — make the client feel like Oshé read their situation, not a template.
 
 PACKAGE DETAILS TO USE:
 Price: ${pkgDetails.price}
@@ -82,12 +92,12 @@ ${pkgDetails.includes.map(i => `- ${i}`).join("\n")}
 Deliverable: ${pkgDetails.deliverable}
 
 INSTRUCTIONS:
-- WHO THIS IS FOR: 2-3 sentences specific to ${company}'s situation based on the call notes and concerns. Make it feel like you listened.
-- WHAT'S INCLUDED: List the package items as clean hyphens. Add one sentence of plain-English context after each item.
-- WHAT YOU'LL RECEIVE: Describe the deliverable and what happens after. Mention the debrief call if applicable.
-- INVESTMENT: State the price clearly. Mention 50% deposit to begin, remainder on delivery. Note that all work is scoped and approved before it starts.
+- WHO THIS IS FOR: 2-3 sentences. Lead with the problem or risk this client is facing based on their call notes and concerns. Make it feel like you were paying attention on the call. No generic opener.
+- WHAT'S INCLUDED: List the package items as clean hyphens. After each item, write one sentence that explains the outcome — what the client will know or have resolved, not what you will do.
+- WHAT YOU'LL RECEIVE: Describe what lands in their inbox. Be specific about the report, what it covers, and how the debrief call works if applicable. Focus on what they walk away with.
+- INVESTMENT: State the price and deposit terms clearly. Add one sentence about why this is priced the way it is — practical, no fluff.
 - NEXT STEPS: Three numbered steps. Simple. 1) Sign and send deposit. 2) Fill out intake form. 3) I'll be in touch within 1 business day to confirm start date.
-- A NOTE FROM OSHÉ: 3-4 sentences. Personal. Reinforce the no-jargon, practical approach. Mention Houston if relevant. End with something that sounds like a real person wrote it — not a template.`
+- A NOTE FROM OSHÉ: 3-4 sentences. Human and direct. Reference something specific from the call notes or concerns if possible. Reinforce that this is practical, not theoretical. Mention Houston if it feels natural. End with a line that sounds like a real person wrote it — not a closing formula.`
 
     const client = new Anthropic()
     const message = await client.messages.create({
