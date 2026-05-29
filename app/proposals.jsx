@@ -1,5 +1,5 @@
 "use client"
-import { useState, useRef } from "react"
+import { useState, useEffect, useRef } from "react"
 
 const PACKAGES = [
   "Starter Snapshot — $250",
