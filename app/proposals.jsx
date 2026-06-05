@@ -16,9 +16,6 @@ const LICENSES = [
 const URGENCY = ["Standard", "Client has upcoming audit", "Recent security incident", "Time-sensitive"]
 const RISK_LEVELS = ["Low", "Medium", "High"]
 
-const STORAGE_KEY = "amazin_proposals"
-
-function uid() { return Date.now().toString(36) + Math.random().toString(36).slice(2, 6) }
 function formatDate(iso) {
   if (!iso) return ""
   return new Date(iso).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })
@@ -36,46 +33,68 @@ export default function Proposals() {
   const [result, setResult] = useState(null)
   const [errorMsg, setErrorMsg] = useState("")
   const [copied, setCopied] = useState(false)
-  const [history, setHistory] = useState(() => {
-    try { return JSON.parse(localStorage.getItem(STORAGE_KEY) || "[]") } catch { return [] }
-  })
+  const [history, setHistory] = useState([])
   const [selectedHistoryId, setSelectedHistoryId] = useState(null)
   const resultRef = useRef(null)
 
-  // Pre-fill from URL params (called from checklist Generate Remediation Proposal button)
+  async function logout() {
+    await fetch("/api/auth/logout", { method: "POST" })
+    window.location.href = "/login"
+  }
+
+  // Load proposal history from Supabase on mount.
+  useEffect(() => {
+    let active = true
+    fetch("/api/save-proposal")
+      .then(r => r.ok ? r.json() : { history: [] })
+      .then(d => { if (active) setHistory(Array.isArray(d.history) ? d.history : []) })
+      .catch(() => {})
+    return () => { active = false }
+  }, [])
+
+  // Pre-fill non-sensitive fields from URL params only.
+  // Security: never read client name, company, concerns, or call notes from
+  // the URL — those are sensitive and must not be passed through query strings.
   useEffect(() => {
     if (typeof window === "undefined") return
     const p = new URLSearchParams(window.location.search)
-    if (!p.get("company")) return
-    const prefilled = {
-      clientName: p.get("clientName") || "",
-      company: p.get("company") || "",
-      package: p.get("package") || PACKAGES[1],
-      licenseType: p.get("licenseType") || "",
-      userCount: p.get("userCount") || "",
-      concerns: p.get("concerns") || "",
-      callNotes: p.get("callNotes") || "",
-      urgency: p.get("urgency") || URGENCY[0],
-      riskLevel: p.get("riskLevel") || "Medium",
-    }
-    setForm(prefilled)
-    // Auto-generate if flag is set
-    if (p.get("autoGenerate") === "true") {
-      // Small delay to allow state to settle
-      setTimeout(() => document.getElementById("generate-btn")?.click(), 400)
-    }
+    const NON_SENSITIVE = ["package", "licenseType", "userCount", "urgency", "riskLevel"]
+    if (!NON_SENSITIVE.some(k => p.get(k))) return
+    setForm(f => ({
+      ...f,
+      package: p.get("package") || f.package,
+      licenseType: p.get("licenseType") || f.licenseType,
+      userCount: p.get("userCount") || f.userCount,
+      urgency: p.get("urgency") || f.urgency,
+      riskLevel: p.get("riskLevel") || f.riskLevel,
+    }))
     // Clean URL
     window.history.replaceState({}, "", window.location.pathname)
   }, [])
 
   const set = (k, v) => setForm(f => ({ ...f, [k]: v }))
 
-  const saveToHistory = (proposal, formData) => {
-    const entry = { id: uid(), ...formData, proposal, createdAt: new Date().toISOString() }
-    const updated = [entry, ...history].slice(0, 50) // keep last 50
-    setHistory(updated)
-    try { localStorage.setItem(STORAGE_KEY, JSON.stringify(updated)) } catch {}
-    return entry.id
+  const saveToHistory = async (proposal, formData) => {
+    try {
+      const res = await fetch("/api/save-proposal", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          clientName: formData.clientName,
+          company: formData.company,
+          package: formData.package,
+          proposal,
+        }),
+      })
+      if (res.ok) {
+        const { entry } = await res.json()
+        if (entry) setHistory(h => [entry, ...h].slice(0, 50))
+      } else {
+        console.error("Failed to save proposal to history")
+      }
+    } catch (e) {
+      console.error("Failed to save proposal to history", e)
+    }
   }
 
   const generate = async () => {
@@ -131,13 +150,19 @@ export default function Proposals() {
               <p className="text-[15px] font-semibold leading-tight">Proposal Generator</p>
             </div>
           </div>
-          <div className="flex items-center gap-1 border border-[#1a2d45] rounded-lg p-0.5">
-            {[["generator", "Generate"], ["history", `History (${history.length})`]].map(([val, label]) => (
-              <button key={val} onClick={() => { setView(val); setSelectedHistoryId(null) }}
-                className={`text-[11px] font-mono px-3 py-1.5 rounded transition-colors ${view === val ? "bg-[#1e3a5f] text-[#60a5fa]" : "text-[#3d5a7a] hover:text-[#7a9abf]"}`}>
-                {label}
-              </button>
-            ))}
+          <div className="flex items-center gap-2">
+            <div className="flex items-center gap-1 border border-[#1a2d45] rounded-lg p-0.5">
+              {[["generator", "Generate"], ["history", `History (${history.length})`]].map(([val, label]) => (
+                <button key={val} onClick={() => { setView(val); setSelectedHistoryId(null) }}
+                  className={`text-[11px] font-mono px-3 py-1.5 rounded transition-colors ${view === val ? "bg-[#1e3a5f] text-[#60a5fa]" : "text-[#3d5a7a] hover:text-[#7a9abf]"}`}>
+                  {label}
+                </button>
+              ))}
+            </div>
+            <button onClick={logout}
+              className="text-[11px] font-mono px-3 py-1.5 rounded border border-[#1a2d45] text-[#3d5a7a] hover:text-[#7a9abf] hover:border-[#3d5a7a] transition-colors">
+              Log out
+            </button>
           </div>
         </div>
       </div>
@@ -319,10 +344,10 @@ export default function Proposals() {
                         </div>
                         <button onClick={e => {
                           e.stopPropagation()
-                          const updated = history.filter(x => x.id !== h.id)
-                          setHistory(updated)
-                          try { localStorage.setItem(STORAGE_KEY, JSON.stringify(updated)) } catch {}
+                          setHistory(hs => hs.filter(x => x.id !== h.id))
                           if (selectedHistoryId === h.id) setSelectedHistoryId(null)
+                          fetch(`/api/save-proposal?id=${encodeURIComponent(h.id)}`, { method: "DELETE" })
+                            .catch(() => {})
                         }} className="text-[#3d5a7a] hover:text-red-400 text-[11px] font-mono px-1 transition-colors flex-shrink-0">✕</button>
                       </div>
                     </div>
