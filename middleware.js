@@ -1,4 +1,4 @@
-import { NextRequest, NextResponse } from 'next/server'
+import { NextResponse } from 'next/server'
 
 const COOKIE_NAME = 'op_session'
 const LOGIN_PATH = '/login'
@@ -7,6 +7,7 @@ export function middleware(req) {
   const { pathname } = req.nextUrl
 
   if (pathname.startsWith(LOGIN_PATH)) return NextResponse.next()
+  if (pathname.startsWith('/api/auth')) return NextResponse.next()
 
   const session = req.cookies.get(COOKIE_NAME)
   if (session?.value === process.env.OPERATOR_SECRET) {
