@@ -22,7 +22,7 @@ function formatDate(iso) {
 }
 
 const EMPTY_FORM = {
-  clientName: "", company: "", package: PACKAGES[1],
+  clientName: "", company: "", clientEmail: "", package: PACKAGES[1],
   userCount: "", licenseType: "", concerns: "", callNotes: "", urgency: URGENCY[0], riskLevel: "Medium",
 }
 
@@ -35,7 +35,33 @@ export default function Proposals() {
   const [copied, setCopied] = useState(false)
   const [history, setHistory] = useState([])
   const [selectedHistoryId, setSelectedHistoryId] = useState(null)
+  const [emailing, setEmailing] = useState(false)
+  const [toast, setToast] = useState(null) // { type: 'success'|'error', msg }
   const resultRef = useRef(null)
+
+  const showToast = (type, msg) => {
+    setToast({ type, msg })
+    setTimeout(() => setToast(t => (t && t.msg === msg ? null : t)), 6000)
+  }
+
+  const emailProposal = async ({ name, company, email, proposal }) => {
+    if (!email) { showToast("error", "Add the client's email address first."); return }
+    setEmailing(true)
+    try {
+      const res = await fetch("/api/send-proposal-email", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name, company, email, proposal }),
+      })
+      const data = await res.json().catch(() => ({}))
+      if (res.ok && data.ok) showToast("success", `Proposal sent to ${email}`)
+      else showToast("error", data.error || "Could not send the proposal.")
+    } catch (e) {
+      showToast("error", e.message || "Network error sending the proposal.")
+    } finally {
+      setEmailing(false)
+    }
+  }
 
   async function logout() {
     await fetch("/api/auth/logout", { method: "POST" })
@@ -195,6 +221,14 @@ export default function Proposals() {
                 </div>
 
                 <div>
+                  <label className="block text-[11px] font-mono text-[#7a9abf] mb-1 uppercase tracking-wider">Client Email</label>
+                  <input type="email" value={form.clientEmail} onChange={e => set("clientEmail", e.target.value)}
+                    placeholder="jane@acmedental.com"
+                    className="w-full bg-[#0d1520] border border-[#1a2d45] rounded-lg px-3 py-2 text-[13px] text-[#e8f0fe] placeholder-[#3d5a7a] focus:outline-none focus:border-[#3b82f6] transition-colors" />
+                  <p className="text-[10px] text-[#3d5a7a] mt-1">Used to email the proposal PDF directly to the client.</p>
+                </div>
+
+                <div>
                   <label className="block text-[11px] font-mono text-[#7a9abf] mb-1 uppercase tracking-wider">Package</label>
                   <select value={form.package} onChange={e => set("package", e.target.value)}
                     className="w-full bg-[#0d1520] border border-[#1a2d45] rounded-lg px-3 py-2 text-[13px] text-[#e8f0fe] focus:outline-none focus:border-[#3b82f6] transition-colors">
@@ -274,7 +308,12 @@ export default function Proposals() {
                       <span className="w-3.5 h-3.5 border-2 border-[#3d5a7a] border-t-[#60a5fa] rounded-full animate-spin"/>
                       Generating proposal…
                     </span>
-                  ) : "Generate Proposal →"}
+                  ) : (
+                    <span className="inline-flex items-center justify-center gap-2">
+                      Generate Proposal
+                      <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden><path d="M5 12h14M13 6l6 6-6 6" /></svg>
+                    </span>
+                  )}
                 </button>
 
                 {status === "error" && (
@@ -315,6 +354,8 @@ export default function Proposals() {
 
               {status === "done" && result && (
                 <ProposalOutput proposal={result} copied={copied} onCopy={handleCopy}
+                  emailing={emailing}
+                  onEmail={() => emailProposal({ name: form.clientName, company: form.company, email: form.clientEmail, proposal: result })}
                   onReset={() => { setStatus("idle"); setResult(null); setForm({ ...EMPTY_FORM }) }} />
               )}
             </div>
@@ -329,7 +370,7 @@ export default function Proposals() {
               {history.length === 0 ? (
                 <div className="text-center py-16">
                   <p className="text-[13px] text-[#7a9abf]">No proposals generated yet.</p>
-                  <button onClick={() => setView("generator")} className="mt-3 text-[12px] font-mono text-[#60a5fa] hover:underline">Generate your first →</button>
+                  <button onClick={() => setView("generator")} className="mt-3 inline-flex items-center gap-1.5 text-[12px] font-mono text-[#60a5fa] hover:underline">Generate your first<svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden><path d="M5 12h14M13 6l6 6-6 6" /></svg></button>
                 </div>
               ) : (
                 <div className="space-y-2">
@@ -348,7 +389,9 @@ export default function Proposals() {
                           if (selectedHistoryId === h.id) setSelectedHistoryId(null)
                           fetch(`/api/save-proposal?id=${encodeURIComponent(h.id)}`, { method: "DELETE" })
                             .catch(() => {})
-                        }} className="text-[#3d5a7a] hover:text-red-400 text-[11px] font-mono px-1 transition-colors flex-shrink-0">✕</button>
+                        }} aria-label="Delete proposal" className="text-[#3d5a7a] hover:text-red-400 px-1 transition-colors flex-shrink-0">
+                          <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden><path d="M6 6l12 12M18 6L6 18" /></svg>
+                        </button>
                       </div>
                     </div>
                   ))}
@@ -372,12 +415,31 @@ export default function Proposals() {
           </div>
         )}
       </div>
+
+      {/* Toast */}
+      {toast && (
+        <div
+          role="status"
+          className={`fixed bottom-5 right-5 z-50 max-w-sm flex items-start gap-2.5 px-4 py-3 rounded-lg border text-[13px] shadow-2xl ${
+            toast.type === "success"
+              ? "bg-[#0d2018] border-green-500/40 text-green-300"
+              : "bg-[#201013] border-red-500/40 text-red-300"
+          }`}
+        >
+          <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className="flex-shrink-0 mt-0.5" aria-hidden>
+            {toast.type === "success"
+              ? <><circle cx="12" cy="12" r="9" /><path d="M8 12l3 3 5-6" /></>
+              : <><circle cx="12" cy="12" r="9" /><path d="M12 8v5M12 16h.01" /></>}
+          </svg>
+          <span>{toast.msg}</span>
+        </div>
+      )}
     </div>
   )
 }
 
 // ── PROPOSAL OUTPUT ────────────────────────────────────────────────────────
-function ProposalOutput({ proposal, copied, onCopy, onReset }) {
+function ProposalOutput({ proposal, copied, onCopy, onReset, onEmail, emailing }) {
   // Format proposal text into sections for display
   const sections = []
   const HEADERS = ["WHO THIS IS FOR", "WHAT'S INCLUDED", "WHAT YOU'LL RECEIVE", "INVESTMENT", "NEXT STEPS", "A NOTE FROM OSHÉ"]
@@ -405,9 +467,19 @@ function ProposalOutput({ proposal, copied, onCopy, onReset }) {
             </button>
           )}
           <button onClick={onCopy}
-            className={`text-[11px] font-mono px-3 py-1.5 rounded-lg border transition-all ${copied ? "text-green-400 border-green-500/40 bg-green-500/10" : "text-white bg-[#3b82f6] border-transparent hover:bg-[#2563eb]"}`}>
-            {copied ? "✓ Copied" : "Copy Full Text"}
+            className={`inline-flex items-center gap-1.5 text-[11px] font-mono px-3 py-1.5 rounded-lg border transition-all ${copied ? "text-green-400 border-green-500/40 bg-green-500/10" : "text-[#7a9abf] border-[#1a2d45] hover:text-[#e8f0fe] hover:border-[#3d5a7a]"}`}>
+            {copied && (
+              <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden><path d="M5 12l4 4 10-11" /></svg>
+            )}
+            {copied ? "Copied" : "Copy Full Text"}
           </button>
+          {onEmail && (
+            <button onClick={onEmail} disabled={emailing}
+              className="inline-flex items-center gap-1.5 text-[11px] font-mono px-3 py-1.5 rounded-lg border border-transparent text-white bg-[#3b82f6] hover:bg-[#2563eb] disabled:opacity-60 transition-all">
+              <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden><rect x="3" y="5" width="18" height="14" rx="2" /><path d="M3.5 6.5 12 13l8.5-6.5" /></svg>
+              {emailing ? "Sending…" : "Email to Client"}
+            </button>
+          )}
         </div>
       </div>
 
