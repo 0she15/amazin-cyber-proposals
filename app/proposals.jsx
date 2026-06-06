@@ -26,6 +26,15 @@ const EMPTY_FORM = {
   userCount: "", licenseType: "", concerns: "", callNotes: "", urgency: URGENCY[0], riskLevel: "Medium",
 }
 
+// Map a lead's package value (e.g. "starter"/"business" or a full label) to a dropdown option.
+function mapPackage(p) {
+  const s = (p || "").toLowerCase()
+  if (s.includes("250") || s.includes("starter")) return PACKAGES[0]
+  if (s.includes("500") || s.includes("business")) return PACKAGES[1]
+  if (s.includes("1,000") || s.includes("1000") || s.includes("remediation")) return PACKAGES[2]
+  return PACKAGES[1]
+}
+
 export default function Proposals() {
   const [view, setView] = useState("generator") // generator | history
   const [form, setForm] = useState({ ...EMPTY_FORM })
@@ -37,7 +46,44 @@ export default function Proposals() {
   const [selectedHistoryId, setSelectedHistoryId] = useState(null)
   const [emailing, setEmailing] = useState(false)
   const [toast, setToast] = useState(null) // { type: 'success'|'error', msg }
+  const [leads, setLeads] = useState([])
+  const [selectedLeadId, setSelectedLeadId] = useState("")
   const resultRef = useRef(null)
+
+  const populateFromLead = (lead) => setForm(f => ({
+    ...f,
+    clientName: lead.name || "",
+    company: lead.company || "",
+    clientEmail: lead.email || "",
+    package: mapPackage(lead.package),
+    callNotes: lead.notes || f.callNotes,
+  }))
+
+  const onSelectLead = (id) => {
+    setSelectedLeadId(id)
+    if (!id) { setForm({ ...EMPTY_FORM }); return }
+    const lead = leads.find(l => l.id === id)
+    if (lead) populateFromLead(lead)
+  }
+
+  // Load leads from the CRM and auto-select one if ?lead_id= is present.
+  useEffect(() => {
+    let active = true
+    fetch("/api/leads")
+      .then(r => r.ok ? r.json() : { leads: [] })
+      .then(d => {
+        if (!active) return
+        const ls = Array.isArray(d.leads) ? d.leads : []
+        setLeads(ls)
+        const lid = new URLSearchParams(window.location.search).get("lead_id")
+        if (lid) {
+          const lead = ls.find(l => l.id === lid)
+          if (lead) { setSelectedLeadId(lid); populateFromLead(lead) }
+        }
+      })
+      .catch(() => {})
+    return () => { active = false }
+  }, [])
 
   const showToast = (type, msg) => {
     setToast({ type, msg })
@@ -205,6 +251,19 @@ export default function Proposals() {
               <p className="text-[20px] font-semibold text-[#e8f0fe] mb-5">New Proposal</p>
 
               <div className="space-y-4">
+                <div>
+                  <label className="block text-[11px] font-mono text-[#7a9abf] mb-1 uppercase tracking-wider">Select Client from CRM</label>
+                  <select value={selectedLeadId} onChange={e => onSelectLead(e.target.value)}
+                    className="w-full bg-[#0d1520] border border-[#1a2d45] rounded-lg px-3 py-2 text-[13px] text-[#e8f0fe] focus:outline-none focus:border-[#3b82f6] transition-colors">
+                    <option value="">— New Client —</option>
+                    {leads.map(l => (
+                      <option key={l.id} value={l.id}>
+                        {(l.name || "Unnamed")}{l.company ? ` — ${l.company}` : ""} ({l.status || "new"})
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
                 <div className="grid grid-cols-2 gap-3">
                   <div>
                     <label className="block text-[11px] font-mono text-[#7a9abf] mb-1 uppercase tracking-wider">Contact Name *</label>
